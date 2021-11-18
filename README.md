@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The idea of this project is to analyse data from single cell sequencing of Arabidopsis root to build an atlas of cell types.   
+The idea of this project is to analyse data from single cell sequencing of Arabidopsis root to build an atlas of cell types.
 
 ## Origin of the data 
 
@@ -13,10 +13,13 @@ The idea of this project is to analyse data from single cell sequencing of Arabi
 ## Files
 ### Data
 Two samples:
-  - SRR8257100 $\rightarrow$ WT
-  - SRR8257106 $\rightarrow$ mutant gl2
-for each sample, 2 fastq files:
-  - XXX_1
+  - SRR8257100 = WT
+  - SRR8257106 = mutant gl2
+For each sample, 2 fastq files:
+  - XXX_1 = cell barcode + UMI
+  - XXX_2 = Read
+  
 ### Src
 
 - get_data.sh : script to download SRR data
+- run_fastq.sh : 
