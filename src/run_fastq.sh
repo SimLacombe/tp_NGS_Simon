@@ -2,5 +2,5 @@
 
 cd ~/mydatalocal/tp_NGS_Simon
 
-fastqc -o results/ -f fastq data/*.fastq.gz
+fastqc -o data/output_fastqc -f fastq data/*.fastq.gz
 
