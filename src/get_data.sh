@@ -9,4 +9,5 @@ do
   parallel-fastq-dump --sra-id $sample \
     --threads 8 --outdir data/ \
     --split-files --gzip 
+  rm data/${sample}_3.fastq.gz
 done
