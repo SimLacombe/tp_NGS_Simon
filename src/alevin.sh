@@ -17,5 +17,5 @@ for sample in $SRR
 do
 salmon alevin -l ISR -1 data/sample_data/${sample}_1.fastq.gz -2 data/sample_data/${sample}_2.fastq.gz --chromium\
   -i ${data_path}transcriptome_salmon_index -p 8 -o results/output_alevin_${sample}\
-  --tgMap ${data_path}txp2gene.tsv
+  --tgMap ${data_path}txp2gene.tsv --dumpFeatures
 done
