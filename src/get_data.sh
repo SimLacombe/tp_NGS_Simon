@@ -7,7 +7,7 @@ for sample in $srr #get data
 do
   echo $sample
   parallel-fastq-dump --sra-id $sample \
-    --threads 8 --outdir data/ \
+    --threads 8 --outdir data/sample_data \
     --split-files --gzip 
   rm data/${sample}_3.fastq.gz
 done
