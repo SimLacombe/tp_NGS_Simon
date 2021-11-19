@@ -27,14 +27,14 @@ For each sample, 2 fastq files:
     - .gtf file = gene id, transcript id, ...
 - *run_fastqs.sh* : quality analysis of the fastq data with fastqc
 - *run_multiQC.sh* : agregate the fastqc analyses into a single multidata analysis
-- *alevin.sh* : runs the Alevin pipeline to build a cell-gene count matrix. 
-      1. Build the Salmon Index of the transcriptome (see Salmon)
-      2. Build the tgmap 
-      3. run alevin. See Srivastava & al. 2019 - Genome Biology (https://doi.org/10.1186/s13059-019-1670-y) for the description of the process. Briefly:
-        a. knee whitelisting --> identification and collision of the cell barcodes
-        b. transcriptome mapping using the salmon index and the tgmap
-        c. UMI deduplication 
-        d. Per cell gene expression estimation
-        e. Second whitelisting
+- *alevin.sh* : runs the Alevin pipeline to build a cell-gene count matrix. \\
+      1. Build the Salmon Index of the transcriptome (see Salmon)\\
+      2. Build the tgmap \\
+      3. run alevin. See Srivastava & al. 2019 - Genome Biology (https://doi.org/10.1186/s13059-019-1670-y) for the description of the process. Briefly:\\
+        a. knee whitelisting --> identification and collision of the cell barcodes\\
+        b. transcriptome mapping using the salmon index and the tgmap\\
+        c. UMI deduplication \\
+        d. Per cell gene expression estimation\\
+        e. Second whitelisting\\
 
 - *alevinQC.r* : quality check of the alevin data
