@@ -2,13 +2,13 @@
 
 ## Introduction
 
-The idea of this project is to analyse data from single cell sequencing of Arabidopsis root to build an atlas of cell types.
+The aim of this project is to analyse data from single cell sequencing of Arabidopsis root to build an atlas of cell types.
 
-## Origin of the data 
-...
-- WT Protoplasts from roots
-- 10X Chromium
-- 3 reads per mol. (cell barcode ; gene ; manip label) ; we deleted the 3rd read
+## Data acquirement
+
+- Protoplasts from roots
+- 10X Chromium 
+- 3 reads per mol. (cell barcode ; gene ; manip label)
 
 ## Files
 ### Data
@@ -26,7 +26,7 @@ For each sample, 2 fastq files:
     
 ### Src
 
-- *get_data.sh* : download the fastq data of the SRR samples
+- *get_data.sh* : download the fastq data of the SRR samples. The 3rd file containing the label of the experient is deleted.
 - *get_ref_transcriptome.sh* : download A. thaliana transcriptomes from "https://ics.hutton.ac.uk/atRTD" 
 - *run_fastqs.sh* : quality analysis of the fastq data with fastqc
 - *run_multiQC.sh* : agregate the fastqc analyses into a single multidata analysis
