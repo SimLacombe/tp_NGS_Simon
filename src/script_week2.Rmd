@@ -1,0 +1,61 @@
+---
+title: "NGS_script_week2"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r library}
+library(Seurat)
+library(tximport)
+library( magrittr)
+```
+
+
+
+```{r load and format data}
+samps <- c("SRR8257100","SRR8257101","SRR8257102","SRR8257103",
+           "SRR8257104","SRR8257105","SRR8257106")
+files <- file.path(
+  paste("/home/rstudio/mydatalocal/tp_NGS_Simon/data/data_total/quant/",samps,"/alevin/quants_mat.gz", sep=""))
+file.exists(files)
+
+txis <- lapply(files, function(f) tximport(files = f, type="alevin"))
+
+seu_objs <- lapply(seq_along(txis), function(i){
+  s <- CreateSeuratObject(counts = txis[[i]]$counts , min.cells = 3, min.features = 200, project = samps[i]) 
+  })
+
+scarabWT <- merge(x = seu_objs[[1]], y = unlist(seu_objs[2:4], recursive = F), add.cell.ids = samps[1:4])
+```
+
+```{r analysis of Seurat count matrix}
+scarabWT[["percent.mt"]] <- PercentageFeatureSet(scarabWT, pattern = "ATM")
+scarabWT[["percent.chloro"]] <- PercentageFeatureSet(scarabWT, pattern = "ATC")
+
+VlnPlot(scarabWT, features = c("nFeature_RNA", "nCount_RNA", "percent.mt", "percent.chloro"), ncol = 4)
+```
+```{r filter }
+thr_mt <- quantile(scarabWT[["percent.mt"]]$percent.m, 0.95)
+thr_chloro <- 0.2
+
+scarabWT_filter <- subset(scarabWT, subset = percent.mt < thr_mt & percent.chloro < thr_chloro)
+
+VlnPlot(scarabWT_filter, features = c("percent.mt", "percent.chloro"), ncol = 4)
+ncell.table <- table(scarabWT$orig.ident) 
+ncell.table
+```
+
+
+```{r umap}
+
+```
+
