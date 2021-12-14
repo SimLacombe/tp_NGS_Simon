@@ -34,28 +34,59 @@ seu_objs <- lapply(seq_along(txis), function(i){
   s <- CreateSeuratObject(counts = txis[[i]]$counts , min.cells = 3, min.features = 200, project = samps[i]) 
   })
 
-scarabWT <- merge(x = seu_objs[[1]], y = unlist(seu_objs[2:4], recursive = F), add.cell.ids = samps[1:4])
+scarabWT_ <- merge(x = seu_objs[[1]], y = unlist(seu_objs[2:4], recursive = F), add.cell.ids = samps[1:4])
 ```
 
 ```{r analysis of Seurat count matrix}
-scarabWT[["percent.mt"]] <- PercentageFeatureSet(scarabWT, pattern = "ATM")
-scarabWT[["percent.chloro"]] <- PercentageFeatureSet(scarabWT, pattern = "ATC")
+scarabWT_[["percent.mt"]] <- PercentageFeatureSet(scarabWT_, pattern = "ATM")
+scarabWT_[["percent.chloro"]] <- PercentageFeatureSet(scarabWT_, pattern = "ATC")
 
-VlnPlot(scarabWT, features = c("nFeature_RNA", "nCount_RNA", "percent.mt", "percent.chloro"), ncol = 4)
+VlnPlot(scarabWT_, features = c("nFeature_RNA", "nCount_RNA", "percent.mt", "percent.chloro"), ncol = 4)
 ```
-```{r filter }
-thr_mt <- quantile(scarabWT[["percent.mt"]]$percent.m, 0.95)
+```{r prepare data}
+thr_mt <- quantile(scarabWT_[["percent.mt"]]$percent.m, 0.95)
 thr_chloro <- 0.2
 
-scarabWT_filter <- subset(scarabWT, subset = percent.mt < thr_mt & percent.chloro < thr_chloro)
+scarabWT <- subset(scarabWT_, subset = percent.mt < thr_mt & percent.chloro < thr_chloro)
 
-VlnPlot(scarabWT_filter, features = c("percent.mt", "percent.chloro"), ncol = 4)
+VlnPlot(scarabWT, features = c("percent.mt", "percent.chloro"), ncol = 4)
 ncell.table <- table(scarabWT$orig.ident) 
 ncell.table
+
+scarabWT <- NormalizeData(scarabWT, normalization.method = "LogNormalize", scale.factor = 10000)
+scarabWT <- FindVariableFeatures(scarabWT, selection.method = "vst", nfeatures = 5000)
+
+all.genes <- rownames(scarabWT)
+scarabWT <- ScaleData(scarabWT, features = all.genes)
+
 ```
 
 
-```{r umap}
+```{r message = FALSE, warning=FALSE, pca }
+scarabWT <- RunPCA(scarabWT, features = VariableFeatures(object = scarabWT))
+```
 
+```{r}
+VizDimLoadings(scarabWT, dims = 1:2, reduction = "pca")
+DimPlot(scarabWT, reduction = "pca")
+DimHeatmap(scarabWT, dims = 1, cells = 500, balanced = TRUE)
+```
+
+
+```{r}
+#scarabWT <- JackStraw(scarabWT, num.replicate = 100)
+#scarabWT <- ScoreJackStraw(scarabWT, dims = 1:20)
+```
+```{r}
+JackStrawPlot(scarabWT, dims = 1:15)
+```
+```{r}
+scarabWT <- FindNeighbors(scarabWT, dims = 1:10)
+scarabWT <- FindClusters(scarabWT, resolution = .5)
+head(Idents(scarabWT), 5)
+```
+```{r}
+scarabWT <- RunUMAP(scarabWT, dims = 1:10)
+DimPlot(scarabWT, reduction = "umap")
 ```
 
