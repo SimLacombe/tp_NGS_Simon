@@ -17,6 +17,8 @@ When you click the **Knit** button a document will be generated that includes bo
 library(Seurat)
 library(tximport)
 library( magrittr)
+library(data.table)
+library(ggplot2)
 ```
 
 
@@ -62,31 +64,55 @@ scarabWT <- ScaleData(scarabWT, features = all.genes)
 ```
 
 
-```{r message = FALSE, warning=FALSE, pca }
+```{r run pca}
 scarabWT <- RunPCA(scarabWT, features = VariableFeatures(object = scarabWT))
 ```
 
-```{r}
+```{r print pca}
 VizDimLoadings(scarabWT, dims = 1:2, reduction = "pca")
 DimPlot(scarabWT, reduction = "pca")
 DimHeatmap(scarabWT, dims = 1, cells = 500, balanced = TRUE)
 ```
 
 
-```{r}
+```{r run jackStraw}
 #scarabWT <- JackStraw(scarabWT, num.replicate = 100)
 #scarabWT <- ScoreJackStraw(scarabWT, dims = 1:20)
 ```
-```{r}
-JackStrawPlot(scarabWT, dims = 1:15)
+```{r print jackstraw}
+#JackStrawPlot(scarabWT, dims = 1:15)
 ```
-```{r}
+```{r cell clustering}
 scarabWT <- FindNeighbors(scarabWT, dims = 1:10)
 scarabWT <- FindClusters(scarabWT, resolution = .5)
 head(Idents(scarabWT), 5)
 ```
-```{r}
+```{r build and print UMAP}
 scarabWT <- RunUMAP(scarabWT, dims = 1:10)
 DimPlot(scarabWT, reduction = "umap")
 ```
+```{r}
+markers <- read.csv(file = "/home/rstudio/mydatalocal/tp_NGS_Simon/data/cell_types/Markers.csv",
+                    header = TRUE, sep="\t")
+markers$Locus<-gsub(" ","",markers$Locus)
+markers$Preferential.expression.in.root<-gsub("/"," ",markers$Preferential.expression.in.root)
+
+system("mkdir -p image")
+system("rm -r image/*")
+
+cell_types <- split(markers, markers$Preferential.expression.in.root)
+
+#output <- lapply(names(cell_types), function(x){f <- FeaturePlot(scarabWT, features = cell_types[[x]]$Locus)
+#ggsave(f, file = paste0("image/", x,".png"), width = 40, height = 40, units = "cm")})
+
+datascore <- data.frame(lapply(names(cell_types),function(x){score=colMeans(scarabWT@assays$RNA[cell_types[[x]]$Locus,])
+}))
+
+names(datascore)<-make.names(names(cell_types))
+scarabWT <- AddMetaData(scarabWT, metadata=datascore) 
+
+g <- FeaturePlot(scarabWT, features = names(datascore))
+ggsave(g,file = "image/type_cellulaire.png",width=40,height=40,units="cm")
+```
+
 
