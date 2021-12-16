@@ -5,23 +5,31 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
 ```
 
-## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+# TP NGS scArabi Simon Lacombe - Week2 
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+The aim of this script is to compute a map of gene expression in which the cellular types are identified. We also compare these maps between WT and rhd6 mutant.
 
-```{r library}
+```{r load packages}
 library(Seurat)
 library(tximport)
 library( magrittr)
+library(network)
 library(data.table)
+library(corrplot)
 library(ggplot2)
+#devtools::install_version("uwot", version = "0.1.10", repos = "http://cran.us.r-project.org")
+library(uwot)
 ```
 
 
+## 1. Load data
+The dataset comes from https://flower.ens-lyon.fr/tp_ngs/scarabi and is downloaded in src/import_data_total.sh (gene/cell count matrix)
+
+Here we convert it to seurat object (see https://satijalab.org/seurat/archive/v3.0/pbmc3k_tutorial.html), more easy to use with R.
 
 ```{r load and format data}
 samps <- c("SRR8257100","SRR8257101","SRR8257102","SRR8257103",
@@ -37,82 +45,216 @@ seu_objs <- lapply(seq_along(txis), function(i){
   })
 
 scarabWT_ <- merge(x = seu_objs[[1]], y = unlist(seu_objs[2:4], recursive = F), add.cell.ids = samps[1:4])
+scarabrhd6_ <- merge(x = seu_objs[[5]], y = unlist(seu_objs[6], recursive = F), add.cell.ids = samps[5:6])
 ```
+## 2. Quality check and correction of the dataset
 
+Here we look at the number of genes and reads per cell as well as the percentage of mtDNA and chlDNA (high percentage for disfunctioning cells).
 ```{r analysis of Seurat count matrix}
 scarabWT_[["percent.mt"]] <- PercentageFeatureSet(scarabWT_, pattern = "ATM")
+scarabrhd6_[["percent.mt"]] <- PercentageFeatureSet(scarabrhd6_, pattern = "ATM")
 scarabWT_[["percent.chloro"]] <- PercentageFeatureSet(scarabWT_, pattern = "ATC")
+scarabrhd6_[["percent.chloro"]] <- PercentageFeatureSet(scarabrhd6_, pattern = "ATC")
 
 VlnPlot(scarabWT_, features = c("nFeature_RNA", "nCount_RNA", "percent.mt", "percent.chloro"), ncol = 4)
+VlnPlot(scarabrhd6_, features = c("nFeature_RNA", "nCount_RNA", "percent.mt", "percent.chloro"), ncol = 4)
 ```
+
+We remove the cells with a too high percentage of mtDNA and chlDNA. For that sake we define a threshold as the $95^{th}$ percentile for mtDNA and 0.2 (resp 0.1) for chlDNA fot the WT sample (resp the rhd6 mutant).
+
+We also normalize and scale the data and we select only the 5000 genes with the highest between-cell variation. 
+The choice of selecting only 5000 genes may have an impact on our results and interpretation. For that reason, we select different nFeatures and compare our results.
 ```{r prepare data}
 thr_mt <- quantile(scarabWT_[["percent.mt"]]$percent.m, 0.95)
+thr_mt_rhd6 <- quantile(scarabrhd6_[["percent.mt"]]$percent.m, 0.95)
 thr_chloro <- 0.2
+thr_chloro_rhd6 <- 0.1
 
 scarabWT <- subset(scarabWT_, subset = percent.mt < thr_mt & percent.chloro < thr_chloro)
+scarabrhd6 <- subset(scarabrhd6_, subset = percent.mt < thr_mt & percent.chloro < thr_chloro)
 
 VlnPlot(scarabWT, features = c("percent.mt", "percent.chloro"), ncol = 4)
-ncell.table <- table(scarabWT$orig.ident) 
-ncell.table
+VlnPlot(scarabrhd6, features = c("percent.mt", "percent.chloro"), ncol = 4)
+ncell.table <- table(scarabWT$orig.ident)
+ncell.tablerhd6 <- table(scarabrhd6$orig.ident) 
+ncell.tablerhd6
 
 scarabWT <- NormalizeData(scarabWT, normalization.method = "LogNormalize", scale.factor = 10000)
-scarabWT <- FindVariableFeatures(scarabWT, selection.method = "vst", nfeatures = 5000)
+scarabrhd6 <- NormalizeData(scarabrhd6, normalization.method = "LogNormalize", scale.factor = 10000)
+scarabWT <- FindVariableFeatures(scarabWT, selection.method = "vst", nfeatures = 5000) #Here I selected 5000 genes to conduct the analysis
+scarabrhd6 <- FindVariableFeatures(scarabrhd6, selection.method = "vst", nfeatures = 5000)
 
 all.genes <- rownames(scarabWT)
 scarabWT <- ScaleData(scarabWT, features = all.genes)
 
+all.genesrhd6 <- rownames(scarabrhd6)
+scarabrhd6 <- ScaleData(scarabrhd6, features = all.genes)
+
 ```
+## 3. Dimension reduction
 
+We run a PCA to display the cells in a 2 dimensional space. 
 
-```{r run pca}
+```{r message = FALSE}
 scarabWT <- RunPCA(scarabWT, features = VariableFeatures(object = scarabWT))
+scarabrhd6 <- RunPCA(scarabrhd6, features = VariableFeatures(object = scarabrhd6))
 ```
-
-```{r print pca}
+We display 3 plots : 
+- Contribution of the genes to the PCs
+- PCA
+- Heatmap: value of the most extrme genes and cells on the PC1. This checkerboard aspect shows that the genes highly contributes to the component, which is hence relevant.
+```{r display pca}
 VizDimLoadings(scarabWT, dims = 1:2, reduction = "pca")
 DimPlot(scarabWT, reduction = "pca")
 DimHeatmap(scarabWT, dims = 1, cells = 500, balanced = TRUE)
-```
 
+VizDimLoadings(scarabrhd6, dims = 1:2, reduction = "pca")
+DimPlot(scarabrhd6, reduction = "pca")
+DimHeatmap(scarabrhd6, dims = 1, cells = 500, balanced = TRUE)
+```
+jackstraw : we test the relevant of the PCs by computing a p-value for each PC based on permutations of the dataset
 
 ```{r run jackStraw}
 #scarabWT <- JackStraw(scarabWT, num.replicate = 100)
 #scarabWT <- ScoreJackStraw(scarabWT, dims = 1:20)
 ```
 ```{r print jackstraw}
-#JackStrawPlot(scarabWT, dims = 1:15)
+#JackStrawPlot(scarabWT, dims = 1:15, xmax=1, ymax=1)
 ```
+## 4. Clustering and Umap
+
+we perform clustering using a KNN graph approach (see the description of seurat for more information)
+
 ```{r cell clustering}
 scarabWT <- FindNeighbors(scarabWT, dims = 1:10)
 scarabWT <- FindClusters(scarabWT, resolution = .5)
+
+scarabrhd6 <- FindNeighbors(scarabrhd6, dims = 1:10)
+scarabrhd6 <- FindClusters(scarabrhd6, resolution = .5)
+
 head(Idents(scarabWT), 5)
 ```
+construction of the UMAP: UMAP builds a KNN graph based on the distance in the n-dim euclidian space and finds the best 2-dim graph to project the data
+
 ```{r build and print UMAP}
-scarabWT <- RunUMAP(scarabWT, dims = 1:10)
+scarabWT <- RunUMAP(scarabWT, dims = 1:10, return.model=TRUE)
 DimPlot(scarabWT, reduction = "umap")
+
+scarabrhd6 <- RunUMAP(scarabrhd6, dims = 1:10)
+DimPlot(scarabrhd6, reduction = "umap")
 ```
-```{r}
+## 5. Get the cellular types
+We use two different approaches to detrmine the cellular types of the cells: a gene based approach and a cell based approach
+### A_ Gene based approach
+Here we use a table with the main cellular type for each gene downloaded in get_cell_type.sh
+```{r get cellular types and print annotated UMAPs}
 markers <- read.csv(file = "/home/rstudio/mydatalocal/tp_NGS_Simon/data/cell_types/Markers.csv",
                     header = TRUE, sep="\t")
 markers$Locus<-gsub(" ","",markers$Locus)
 markers$Preferential.expression.in.root<-gsub("/"," ",markers$Preferential.expression.in.root)
 
-system("mkdir -p image")
-system("rm -r image/*")
+system("mkdir -p ../results/image")
+system("rm -r ../results/image/*")
+setwd("/home/rstudio/mydatalocal/tp_NGS_Simon/")
 
-cell_types <- split(markers, markers$Preferential.expression.in.root)
+cell_types <- split(markers, markers$Preferential.expression.in.root) #table with genes for each cell type
 
-#output <- lapply(names(cell_types), function(x){f <- FeaturePlot(scarabWT, features = cell_types[[x]]$Locus)
-#ggsave(f, file = paste0("image/", x,".png"), width = 40, height = 40, units = "cm")})
+output <- lapply(names(cell_types), function(x){f <- FeaturePlot(scarabWT, features = cell_types[[x]]$Locus)
+ggsave(f, file = paste0("results/image/", x,".png"), width = 40, height = 40, units = "cm")})
 
 datascore <- data.frame(lapply(names(cell_types),function(x){score=colMeans(scarabWT@assays$RNA[cell_types[[x]]$Locus,])
-}))
+})) #table with the score for each cell/cell-type couple. The score is based on the Mean expression level for the genes constitutiong this cell type
 
 names(datascore)<-make.names(names(cell_types))
 scarabWT <- AddMetaData(scarabWT, metadata=datascore) 
 
 g <- FeaturePlot(scarabWT, features = names(datascore))
-ggsave(g,file = "image/type_cellulaire.png",width=40,height=40,units="cm")
-```
+ggsave(g,file = "results/image/type_cellulaire.png",width=40,height=40,units="cm")
 
+```
+### B_ Cell based approach
+
+Here we extract a table with the expression profile of several cells with a known cellular type. This table is used to determine the cellular type using a correlation approach.
+
+```{r get cellular types and print annotated UMAPs}
+samps_li<-read.table("~/mydatalocal/tp_NGS_Simon/data/cell_marker/flower.ens-lyon.fr/tp_ngs/scarabi/Li2016/metadata_Li2016.txt", sep="\t") 
+#Triés par types cellulaires
+samps_li<-samps_li[order(samps_li$V3),]
+#On supprime certains types cellulaires inintéressants
+rm_cell_type <- c("whole root", "whole root 1", "cycloheximide mock", "cycloheximide treatment")
+samps_li <- samps_li[!(samps_li$V3%in%rm_cell_type),]
+
+head(samps_li)
+ech<-samps_li$V1
+ech #all sample names (some don't have a file associated)
+
+files <- file.path(
+  paste("~/mydatalocal/tp_NGS_Simon/data/cell_marker/flower.ens-lyon.fr/tp_ngs/scarabi/Li2016/Salmon/Counts_Salmon/",ech,"/quant.sf", sep=""))
+files<-files[file.exists(files)]#Get filenames for existing files only
+files
+ech2=sapply(files,function(f){strsplit(f,"/")[[1]][12]}) #sample names with existing files
+
+##Get Txp to gene (transctipt to gene map)
+
+tx2gene<-read.table("~/mydatalocal/tp_NGS_Simon/data/transcriptome_data/txp2gene.tsv")
+names(tx2gene)<-c("TXNAME","GENEID")
+tx2gene<-unique(tx2gene)
+head(tx2gene)
+
+##Get cell-gene tables
+txis <- lapply(files, function(f) {
+  tab<- tximport(files = f, type="salmon", tx2gene=tx2gene)
+  return(tab$abundance)
+  })
+
+
+tabpur<-as.data.frame(txis)
+colnames(tabpur)<-ech2
+
+###WT
+avg.e <- AverageExpression(scarabWT, group.by = "seurat_clusters")
+scarabWT_avg=data.frame(avg.e)
+
+genes_scarabi <- rownames(scarabWT_avg)
+genes_li <- rownames(tabpur)
+genes_common <- genes_scarabi[genes_scarabi%in%genes_li]
+
+tabpur_c <- tabpur[genes_common,]
+scarabWT_avg_c <- scarabWT_avg[genes_common,]
+
+corLi_scarab_spearman <- cor(scarabWT_avg_c,tabpur_c,method="spearman")
+colnames(corLi_scarab_spearman) <- lapply(colnames(corLi_scarab_spearman), function(name){samps_li$V3[samps_li$V1==name]})
+corrplot(corLi_scarab_spearman, method="color", is.corr=F, tl.col = as.color(colnames(corLi_scarab_spearman)))
+
+
+
+new.cluster.ids <- sapply(rownames(corLi_scarab_spearman), 
+                          function(i){names(which(corLi_scarab_spearman[i,]==max(corLi_scarab_spearman[i,])))})
+
+names(new.cluster.ids) <-  levels(scarabWT$seurat_clusters)
+scarabWT <- RenameIdents(scarabWT, new.cluster.ids)
+DimPlot(scarabWT, reduction = "umap", label = TRUE, pt.size = 0.5) 
+
+###rhd6
+
+avg.e.rhd6 <- AverageExpression(scarabrhd6, group.by = "seurat_clusters")
+scarabrhd6_avg=data.frame(avg.e)
+
+genes_scarabi.rhd6 <- rownames(scararhd6_avg)
+genes_common.rhd6 <- genes_scarabi[genes_common.rhd6%in%genes_li]
+
+tabpur_c.rhd6 <- tabpur[genes_common.rhd6,]
+scarabrhd6_avg_c <- scarabWT_avg[genes_common.rhd6,]
+
+corLi_scarab_spearman_rhd6 <- cor(scarabrhd6_avg_c,tabpur_c_rhd6,method="spearman")
+colnames(corLi_scarab_spearman_rhd6) <- lapply(colnames(corLi_scarab_spearman_rhd6), function(name){samps_li$V3[samps_li$V1==name]})
+corrplot(corLi_scarab_spearman_rhd6, method="color", is.corr=F, tl.col = as.color(colnames(corLi_scarab_spearman_rhd6)))
+
+
+new.cluster.ids_rhd6 <- sapply(rownames(corLi_scarab_spearman_rhd6), 
+                          function(i){names(which(corLi_scarab_spearman_rhd6[i,]==max(corLi_scarab_spearman_rhd6[i,])))})
+
+names(new.cluster.ids_rhd6) <-  levels(scararhd6T$seurat_clusters)
+scarabrhd6 <- RenameIdents(scarabrhd6, new.cluster.ids)
+DimPlot(scarabrhd6, reduction = "umap", label = TRUE, pt.size = 0.5) 
 
